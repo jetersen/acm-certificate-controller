@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -343,63 +342,20 @@ func (r *SecretReconciler) ParseCertificateDetails(secret *corev1.Secret) (Certi
 		}
 	*/
 
-	certString := string(certBytes)
-	regex := regexp.MustCompile(`(?m)` + global.PEM_CERTIFICATE_BEGIN_TAG + `[\w\W]+?` + global.PEM_CERTIFICATE_END_TAG)
-
-	certificates := []*CertificateWrapper{}
-
-	matches := regex.FindAllString(certString, -1)
-	for i, componentCertificate := range matches {
-		block, _ := pem.Decode([]byte(componentCertificate))
-		if block == nil {
-			return CertificateDetails{}, fmt.Errorf("Could not decode certificate at index %d within 'tls.crt'.", i)
-		}
-
-		certificate, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return CertificateDetails{}, fmt.Errorf("Could not parse certificate at index %d within 'tls.crt'.", i)
-		}
-		certificates = append(certificates, &CertificateWrapper{
-			PEM:  componentCertificate,
-			x509: certificate,
-		})
+	// Parse all certificates from the PEM data
+	certificates, err := r.parseCertificatesFromPEM(certBytes)
+	if err != nil {
+		return CertificateDetails{}, fmt.Errorf("failed to parse certificates: %w", err)
 	}
 
-	// Find leaf certificate = the one whose subject is not *also* an issuer of another certificate.
-	var leaf *CertificateWrapper
-	for i, certificate := range certificates {
-		subjectDN := certificate.x509.Subject.String()
-		isIssuer := false
-		for j, otherCertificate := range certificates {
-			if i == j {
-				continue
-			}
-			if otherCertificate.x509.Issuer.String() == subjectDN {
-				isIssuer = true
-				break
-			}
-		}
-		if !isIssuer {
-			leaf = certificate
-			break
-		}
+	if len(certificates) == 0 {
+		return CertificateDetails{}, errors.New("no certificates found in 'tls.crt'")
 	}
 
-	// Construct intermediate chain (leafwards -> rootwards)
-	var intermediates []*CertificateWrapper
-	current := leaf
-	for {
-		issuer := r.FindIssuingCertificate(current, certificates)
-		if issuer == nil {
-			break
-		}
-		intermediates = append(intermediates, issuer)
-		current = issuer
-	}
-
-	// Verify that intermediate chain is complete
-	if len(intermediates) != len(matches)-1 {
-		return CertificateDetails{}, errors.New("One or more certificates not incorporated into intermediate chain.")
+	// Build certificate chain: leaf certificate is first, intermediates follow
+	leaf, intermediates, err := r.buildCertificateChain(certificates)
+	if err != nil {
+		return CertificateDetails{}, fmt.Errorf("failed to build certificate chain: %w", err)
 	}
 
 	output := &CertificateDetails{
@@ -419,16 +375,6 @@ func (r *SecretReconciler) ParseCertificateDetails(secret *corev1.Secret) (Certi
 	}
 
 	return *output, nil
-}
-
-func (r *SecretReconciler) FindIssuingCertificate(subjectCertificate *CertificateWrapper, certificatePool []*CertificateWrapper) *CertificateWrapper {
-	issuerDN := subjectCertificate.x509.Issuer.String()
-	for _, candidateCertificate := range certificatePool {
-		if candidateCertificate.x509.Subject.String() == issuerDN {
-			return candidateCertificate
-		}
-	}
-	return nil
 }
 
 func (r *SecretReconciler) FindACMCertificatesByDomain(acmClient *acm.Client, domainName string) ([]*acm.DescribeCertificateOutput, error) {
@@ -598,4 +544,95 @@ func (r *SecretReconciler) ExtractCertificateDomains(certificate *x509.Certifica
 
 func (r *SecretReconciler) AnnotationMatches(secret *corev1.Secret, key string, value string) bool {
 	return secret.Annotations[key] == value
+}
+
+func (r *SecretReconciler) parseCertificatesFromPEM(certBytes []byte) ([]*CertificateWrapper, error) {
+	var certificates []*CertificateWrapper
+	rest := certBytes
+
+	for i := 0; len(rest) > 0; i++ {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+
+		certificate, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse certificate at index %d: %w", i, err)
+		}
+
+		pemBytes := pem.EncodeToMemory(block)
+		certificates = append(certificates, &CertificateWrapper{
+			PEM:  string(pemBytes),
+			x509: certificate,
+		})
+	}
+
+	return certificates, nil
+}
+
+func (r *SecretReconciler) buildCertificateChain(certificates []*CertificateWrapper) (*CertificateWrapper, []*CertificateWrapper, error) {
+	if len(certificates) == 0 {
+		return nil, nil, errors.New("no certificates provided")
+	}
+
+	// Single certificate - it's the leaf
+	if len(certificates) == 1 {
+		return certificates[0], nil, nil
+	}
+
+	// Find leaf certificate by checking which certificate is not an issuer of any other
+	var leaf *CertificateWrapper
+	for _, candidate := range certificates {
+		isIssuer := false
+		candidateSubject := candidate.x509.Subject.String()
+
+		for _, other := range certificates {
+			if candidate == other {
+				continue
+			}
+			if other.x509.Issuer.String() == candidateSubject {
+				isIssuer = true
+				break
+			}
+		}
+
+		if !isIssuer {
+			leaf = candidate
+			break
+		}
+	}
+
+	if leaf == nil {
+		return nil, nil, errors.New("could not identify leaf certificate")
+	}
+
+	// Build intermediate chain from leaf to root
+	var intermediates []*CertificateWrapper
+	current := leaf
+
+	for {
+		issuer := r.findCertificateBySubject(current.x509.Issuer.String(), certificates)
+		if issuer == nil || issuer == current {
+			break
+		}
+		intermediates = append(intermediates, issuer)
+		current = issuer
+	}
+
+	return leaf, intermediates, nil
+}
+
+func (r *SecretReconciler) findCertificateBySubject(subjectDN string, certificates []*CertificateWrapper) *CertificateWrapper {
+	for _, cert := range certificates {
+		if cert.x509.Subject.String() == subjectDN {
+			return cert
+		}
+	}
+	return nil
 }

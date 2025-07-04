@@ -24,9 +24,6 @@ const (
 	CERTIFICATE_STATUS_EXPIRED  string = "Expired"
 	CERTIFICATE_STATUS_INACTIVE string = "Inactive"
 
-	PEM_CERTIFICATE_BEGIN_TAG string = "-----BEGIN CERTIFICATE-----"
-	PEM_CERTIFICATE_END_TAG   string = "-----END CERTIFICATE-----"
-
 	ISO_8601_FORMAT string = "2006-01-02T15:04:05+07:00" // Why this arbitrary string? Because: reasons. See https://pkg.go.dev/time#pkg-constants
 
 	DEFAULT_REQUEUE_LATENCY = 15 * time.Second
