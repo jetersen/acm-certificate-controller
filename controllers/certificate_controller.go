@@ -57,7 +57,17 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{RequeueAfter: defaultRequeueLatency}, client.IgnoreNotFound(err)
 	}
 
+	// Detect if Certificate is annotated to enable ACM certificate management.
+	certificateAgentEnabledAnnotation, hasAnnotation := certificate.Annotations[global.AGENT_ENABLED_ANNOTATION]
+	if !hasAnnotation {
+		log.Info(fmt.Sprintf("Certificate '%s' is not annotated, stop processing.", req.NamespacedName))
+		return ctrl.Result{}, nil
+	}
+
 	log.Info(fmt.Sprintf("Processing Certificate %s...", req.NamespacedName))
+
+	// Parse the boolean value from the annotation
+	certificateAgentEnabled, _ := strconv.ParseBool(certificateAgentEnabledAnnotation)
 
 	// Certificate is marked for deletion, so clean up annotations (if they exist) on the Secret regardless of the management state.
 	if !certificate.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -140,12 +150,6 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// At this point we:
 	// 	 - Have a linked Secret, and
 	//	 - Know that we can manage it (either because the Secret is explicitly marked as inheriting from this Certificate or it has no agent annotations)...
-
-	// Detect if Certificate is annotated to enable ACM certificate management.
-	certificateAgentEnabledAnnotation, certificateAgentEnabled := certificate.Annotations[global.AGENT_ENABLED_ANNOTATION]
-	if certificateAgentEnabled {
-		certificateAgentEnabled, _ = strconv.ParseBool(certificateAgentEnabledAnnotation)
-	}
 
 	// Certificate management is disabled or unspecified, so clean up annotations (if they exist) on the Secret.
 	if !certificateAgentEnabled {
