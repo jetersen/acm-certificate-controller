@@ -96,6 +96,12 @@ To enable ACM certificate import, you can place an annotation on either Certific
     
     The Secret containing the actual SSL certificate associated with this Certificate resource will be automatically imported into ACM.
 
+    **Region-specific import for CloudFront:**
+    
+    To import the certificate to a specific AWS region (e.g., us-east-1 for CloudFront), add the following annotation:
+    
+    `acm-certificate-agent.validitron.io/region: 'us-east-1'`
+
 - **Secrets (core/Secret)**
 
     **NOTE**: If the Secret is being managed by a cert-manager Certificate resource, you should *not* configure the Secret directly but rather annotate the Certificate instead (see above). This will ensure that if the Secret is deleted/recreated by cert-manager (for example, when the certificate is re-issued), agent configuration persists and ACM sychronisation continues without interruption.
@@ -106,6 +112,11 @@ To enable ACM certificate import, you can place an annotation on either Certific
     
     Set the value to false to disable ACM import. Any existing ACM certificates will *not* be removed.
 
+    **Region-specific import for CloudFront:**
+    
+    To import the certificate to a specific AWS region (e.g., us-east-1 for CloudFront), add the following annotation:
+    
+    `acm-certificate-agent.validitron.io/region: 'us-east-1'`
 <br/>
 
 ### Core function 2: Automating explicit ALB ingress ACM certificate assignment
@@ -175,6 +186,11 @@ To support internal book-keeping, the agent automatically adds annotations to ma
 - `acm-certificate-agent.validitron.io/inherits-from`
 - `acm-certificate-agent.validitron.io/serial-number`
 
+The agent also recognizes the following user-configurable annotations on Certificate and Secret resources:
+
+- `acm-certificate-agent.validitron.io/enabled` - Enable/disable ACM import
+- `acm-certificate-agent.validitron.io/region` - Target AWS region for certificate import
+
 <br/>
 
 ## Debugging 
@@ -185,4 +201,3 @@ make helm-debug
 ```
 
 Output will be generated as `debug.yaml`
-
