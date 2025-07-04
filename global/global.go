@@ -15,6 +15,7 @@ const (
 	AGENT_CERTIFICATE_DOMAIN_NAMES_ANNOTATION  string = FULL_NAME + "/domains"
 	AGENT_CERTIFICATE_SERIAL_NUMBER_ANNOTATION string = FULL_NAME + "/serial-number"
 	AGENT_CERTIFICATE_EXPIRY_DATE_ANNOTATION   string = FULL_NAME + "/expires"
+	AGENT_CERTIFICATE_REGION_ANNOTATION        string = FULL_NAME + "/regions"
 
 	ALB_INGRESS_CLASS_ANNOTATION           string = "kubernetes.io/ingress.class"
 	ALB_INGRESS_LISTEN_PORTS_ANNOTATION    string = "alb.ingress.kubernetes.io/listen-ports"

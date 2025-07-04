@@ -220,6 +220,7 @@ func (r *CertificateReconciler) DeleteSecretManagementAnnotations(secret *corev1
 	delete(secret.Annotations, global.AGENT_CERTIFICATE_ARN_ANNOTATION)
 	delete(secret.Annotations, global.AGENT_CERTIFICATE_EXPIRY_DATE_ANNOTATION)
 	delete(secret.Annotations, global.AGENT_CERTIFICATE_SERIAL_NUMBER_ANNOTATION)
+	delete(secret.Annotations, global.AGENT_CERTIFICATE_REGION_ANNOTATION)
 
 	return r.Update(context.TODO(), secret, &client.UpdateOptions{})
 }
@@ -232,6 +233,12 @@ func (r *CertificateReconciler) AddSecretManagementAnnotations(secret *corev1.Se
 	certificateArn, ok := certificate.Annotations[global.AGENT_CERTIFICATE_ARN_ANNOTATION]
 	if ok && certificateArn != "" {
 		secret.Annotations[global.AGENT_CERTIFICATE_ARN_ANNOTATION] = certificateArn
+	}
+
+	// Propagate region annotation to Secret
+	certificateRegions, ok := certificate.Annotations[global.AGENT_CERTIFICATE_REGION_ANNOTATION]
+	if ok && certificateRegions != "" {
+		secret.Annotations[global.AGENT_CERTIFICATE_REGION_ANNOTATION] = certificateRegions
 	}
 
 	return r.Update(context.TODO(), secret, &client.UpdateOptions{})

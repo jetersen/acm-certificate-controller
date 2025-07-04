@@ -148,6 +148,11 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	// Override region if specified in secret annotation.
+	if region := strings.TrimSpace(secret.Annotations[global.AGENT_CERTIFICATE_REGION_ANNOTATION]); region != "" {
+		cfg.Region = region
+	}
+
 	acmClient := acm.NewFromConfig(cfg)
 
 	// Evaluate state...
