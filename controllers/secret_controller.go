@@ -244,11 +244,12 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		certificateDetails.CertificateArn = importResult.CertificateArn
+		namespaceAndResource := *certificateDetails.Namespace + "/" + *certificateDetails.SecretName
 
 		// Tag separately because you can only tag on import when creating (not updating) a certificate.
 		tagInput := acm.AddTagsToCertificateInput{
 			CertificateArn: certificateDetails.CertificateArn,
-			Tags:           r.CreateStandardTagArray(certificateDetails.CreatedAt),
+			Tags:           r.CreateStandardTagArray(certificateDetails.CreatedAt, namespaceAndResource),
 		}
 		_, tagError := acmClient.AddTagsToCertificate(context.TODO(), &tagInput)
 		if tagError != nil {
@@ -531,7 +532,7 @@ func (r *SecretReconciler) GetACMCertificateTag(acmClient *acm.Client, certifica
 	return nil
 }
 
-func (r *SecretReconciler) CreateStandardTagArray(createdAtString *string) []types.Tag {
+func (r *SecretReconciler) CreateStandardTagArray(createdAtString *string, namespaceAndResource string) []types.Tag {
 
 	now := aws.String(time.Now().UTC().Format(global.ISO_8601_FORMAT))
 
@@ -554,6 +555,10 @@ func (r *SecretReconciler) CreateStandardTagArray(createdAtString *string) []typ
 		{
 			Key:   aws.String("tron/createdAt"),
 			Value: createdAtString,
+		},
+		{
+			Key:   aws.String("tron/resourceReference"),
+			Value: aws.String(namespaceAndResource),
 		},
 	}
 
