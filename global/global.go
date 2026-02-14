@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	PACKAGE_NAME string = "acm-certificate-agent"
+	PACKAGE_NAME string = "acm-certificate-controller"
 	DOMAIN_NAME  string = "validitron.io"
 	FULL_NAME    string = PACKAGE_NAME + "." + DOMAIN_NAME
 

@@ -31,4 +31,4 @@ charts/
 bin/
 
 # Script-runner intermediates
-scripts/_history/
+scripts/_history/.vscode/
