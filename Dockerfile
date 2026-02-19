@@ -9,7 +9,9 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the go source
-COPY . ./
+COPY main.go ./
+COPY controllers/ controllers/
+COPY global/ global/
 
 # Build
 ARG TARGETOS TARGETARCH
